@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 ==============================================================================
-The code for the class pyhip
+The code for the class hip
 ==============================================================================
-This is the main class of python Hawkes Intensity Process model.
+This is the main class of Hawkes Intensity Process model.
 It provides fitting and forecasting functions for two time series data.
+Paper: Rizoiu, M.-A.; Xie, L.; Sanner, S.; Cebrian, M.; Yu, H.; and Van Hentenryck, P. 2017.
+Expecting to be hip: Hawkes intensity processes for social media popularity. In WWW, 735–744.
+https://arxiv.org/abs/1602.06033
 """
 
 import numpy as np

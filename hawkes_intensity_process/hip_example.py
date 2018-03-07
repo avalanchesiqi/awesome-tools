@@ -4,7 +4,7 @@
 import os, json, time
 from datetime import timedelta
 
-from pyhip import HIP
+from hip import HIP
 
 if __name__ == '__main__':
     # == == == == == == == == Part 1: Load data == == == == == == == == #
