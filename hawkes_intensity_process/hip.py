@@ -300,7 +300,7 @@ class HIP(object):
 
     # plot function for fitting and forecasting process
     def plot_func(self, title):
-        """ Plot fitting and forecasting of HIP model
+        """ Plot fitting and forecasting of HIP model.
         :param title: figure title, YoutubeID
         """
         fig = plt.figure(figsize=(8, 6))
