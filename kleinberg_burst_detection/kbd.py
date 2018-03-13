@@ -13,7 +13,7 @@ https://www.cs.cornell.edu/home/kleinber/bhs.pdf
 Blog: https://nikkimarinsek.com/blog/kleinberg-burst-detection-algorithm
 """
 
-import sys
+from collections import defaultdict
 import numpy as np
 from scipy.misc import comb
 import matplotlib as mpl
@@ -38,6 +38,7 @@ class KBD(object):
         self.gamma = None
         self.p = None
         self.q = None
+        self.bursts = None
 
     def initial(self, d, r, k=2):
         """ Initialize or reset model with data.
@@ -45,10 +46,13 @@ class KBD(object):
         :param r: number of target events in each time step
         :param k: number of state, default 2 states
         """
-        self.d = np.array(d)
-        self.r = np.array(r)
-        self.n = len(d)
-        self.k = k
+        if isinstance(k, int) and k >= 2:
+            self.d = np.array(d)
+            self.r = np.array(r)
+            self.n = len(d)
+            self.k = k
+        else:
+            raise Exception('--- Number of states k must be an integer and no less than 2!')
 
     def set_s(self, s):
         """ Set hyperparameter s.
@@ -63,18 +67,48 @@ class KBD(object):
         """
         self.gamma = gamma
 
-    # # get parameters from model
-    # def get_parameters(self):
-    #     """ Get parameters from model.
-    #     :return: model parameters of start, t_awakening, t_peak, t_falling, end
-    #     """
-    #     return np.array([self.start, self.awakening, self.peak, self.falling, self.end])
-    #
-    # def print_parameters(self):
-    #     """ Print model parameters.
-    #     """
-    #     print('start={0}, t_awakening={1}, t_peak={2}, t_falling={3}, end={4}'
-    #           .format(*self.get_parameters()))
+    def extract_structure(self):
+        """ Extract hierarchical structure of bursts.
+        :return: dictionary of burst {state: [[id, start, end, weight]]}
+        """
+        ret = defaultdict(list)
+        for i in range(1, self.k):
+            bid = 0
+            isburst = False
+            for t in range(self.n):
+                if self.q[t] == i and not isburst:
+                    start = t
+                    isburst = True
+                elif isburst and self.q[t] != i:
+                    end = t
+                    isburst = False
+                    ret[i].append([bid, start, end])
+                    bid += 1
+        return ret
+
+    def print_bursts(self):
+        """ Print burst structure.
+        """
+        print('observed probabilities:')
+        print(','.join(map(lambda x: str(round(x, 3)), self.r/self.d)))
+
+        print('optimal state:')
+        print(','.join(map(lambda x: str(int(x)), self.q)))
+
+        print('bursty probability:')
+        print('+' + '--------+'*self.k)
+        print('|' + ''.join([' state{0} |'.format(i) for i in range(self.k)]))
+        print('|' + ''.join([' {0:.4f} |'.format(self.p[i]) for i in range(self.k)]))
+        print('+' + '--------+' * self.k)
+
+        print('weighted bursts:')
+        print('+-------+-------+-------+-------+----------+')
+        print('| state | label | begin |   end |  weight  |')
+        for i in sorted(self.bursts):
+            for burst in self.bursts[i]:
+                bid, start, end = burst
+                print('| {0: >5} | {1: >5} | {2: >5} | {3: >5} |      |'.format(i, bid, start, end))
+        print('+-------+-------+-------+------+----------+')
 
     # == == == == == == == == modelling components == == == == == == == == #
     def get_state_probability(self):
@@ -82,8 +116,7 @@ class KBD(object):
         :return: list of probability in each state
         """
         if self.r is None:
-            print('--- Initialize data before generating state probability')
-            sys.exit(1)
+            raise Exception('--- Initialize data before generating state probability!')
         p_0 = np.sum(self.r) / np.sum(self.d)
         ret = []
         for i in range(self.k):
@@ -114,7 +147,6 @@ class KBD(object):
         :param p_i: probability of in state i
         :return: cost of fitting observation
         """
-
         return -np.log(comb(d_t, r_t) * (p_i**r_t) * ((1-p_i)**(d_t-r_t)))
 
     def detect_burst(self):
@@ -138,6 +170,7 @@ class KBD(object):
             # add the state with the minimum cost to the optimal state sequence
             q[t] = np.argmin(cost[t, :])
         self.q = q
+        self.bursts = self.extract_structure()
 
     # plot function for time series data and bursty detection results
     def plot_func(self):

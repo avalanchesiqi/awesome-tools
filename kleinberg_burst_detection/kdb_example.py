@@ -30,5 +30,6 @@ if __name__ == '__main__':
     kdb_model.set_s(s=1.5)
     kdb_model.set_gamma(gamma=1)
     kdb_model.detect_burst()
+    kdb_model.print_bursts()
     kdb_model.plot_func()
     print('>>> Total running time: {0}'.format(str(timedelta(seconds=time.time() - start_time)))[:-3])
