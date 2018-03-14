@@ -67,36 +67,46 @@ class KBD(object):
         """
         self.gamma = gamma
 
+    def burst_weight(self, p_0, p_i, d_t, r_t):
+        """ Get burst weight for d_t and r_t in state p_i
+        :param p_0: base probability
+        :param p_i: target event probability at state i
+        :param d_t: number of events in time t
+        :param r_t: number of target events in time t
+        :return: burst weight
+        """
+        return self.cost_fit_observation(d_t, r_t, p_0) - self.cost_fit_observation(d_t, r_t, p_i)
+
     def extract_structure(self):
         """ Extract hierarchical structure of bursts.
         :return: dictionary of burst {state: [[id, start, end, weight]]}
         """
-        ret = defaultdict(list)
+        bursts = defaultdict(list)
         for i in range(1, self.k):
+            burst_times = np.argwhere(self.q >= i).flatten()
             bid = 0
-            isburst = False
-            for t in range(self.n):
-                if self.q[t] == i and not isburst:
-                    start = t
-                    isburst = True
-                elif isburst and self.q[t] != i:
-                    end = t
-                    isburst = False
-                    ret[i].append([bid, start, end])
+            start = burst_times[0]
+            last_bt = start
+            weight = self.burst_weight(self.p[0], self.p[i], self.d[last_bt], self.r[last_bt])
+            for j in range(1, len(burst_times)):
+                # print(burst_times[j], last_bt+1)
+                if burst_times[j] == last_bt + 1:
+                    last_bt = burst_times[j]
+                    weight += self.burst_weight(self.p[0], self.p[i], self.d[last_bt], self.r[last_bt])
+                else:
+                    bursts[i].append([bid, start, last_bt, weight])
                     bid += 1
-        return ret
+                    start = burst_times[j]
+                    last_bt = start
+                    weight = self.burst_weight(self.p[0], self.p[i], self.d[last_bt], self.r[last_bt])
+            bursts[i].append([bid, start, last_bt, weight])
+        return bursts
 
     def print_bursts(self):
         """ Print burst structure.
         """
-        print('observed probabilities:')
-        print(','.join(map(lambda x: str(round(x, 3)), self.r/self.d)))
-
-        print('optimal state:')
-        print(','.join(map(lambda x: str(int(x)), self.q)))
-
         print('bursty probability:')
-        print('+' + '--------+'*self.k)
+        print('+' + '--------+' * self.k)
         print('|' + ''.join([' state{0} |'.format(i) for i in range(self.k)]))
         print('|' + ''.join([' {0:.4f} |'.format(self.p[i]) for i in range(self.k)]))
         print('+' + '--------+' * self.k)
@@ -106,9 +116,9 @@ class KBD(object):
         print('| state | label | begin |   end |  weight  |')
         for i in sorted(self.bursts):
             for burst in self.bursts[i]:
-                bid, start, end = burst
-                print('| {0: >5} | {1: >5} | {2: >5} | {3: >5} |      |'.format(i, bid, start, end))
-        print('+-------+-------+-------+------+----------+')
+                bid, start, end, weight = burst
+                print('| {0: >5} | {1: >5} | {2: >5} | {3: >5} | {4: >#08.4f} |'.format(i, bid, start, end, weight))
+        print('+-------+-------+-------+-------+----------+')
 
     # == == == == == == == == modelling components == == == == == == == == #
     def get_state_probability(self):
@@ -169,21 +179,27 @@ class KBD(object):
 
             # add the state with the minimum cost to the optimal state sequence
             q[t] = np.argmin(cost[t, :])
-        self.q = q
+        self.q = q.flatten()
         self.bursts = self.extract_structure()
 
     # plot function for time series data and bursty detection results
     def plot_func(self):
         """ Plot bursty detection results of KBD model.
         """
-        fig, (ax1, ax2) = plt.subplots(2, 1, sharex='col', figsize=(8, 5), gridspec_kw={'height_ratios': [4, 1]})
+        fig, (ax1, ax2) = plt.subplots(2, 1, sharex='col', figsize=(8, 5), gridspec_kw={'height_ratios': [3, 2]})
 
-        ax1.plot(np.arange(self.n), self.r/self.n, 'k')
+        ax1.plot(np.arange(self.n), self.r/self.n, 'k--')
         ax1.set_ylabel('prob target events')
 
-        ax2.plot(np.arange(self.n), self.q, 'b')
+        bursts = self.bursts
+        for state in bursts:
+            for seg in bursts[state]:
+                _, start, end, _ = seg
+                ax2.scatter(np.arange(start, end+1), [state]*(end+1-start), marker='x', color='r')
         ax2.set_xlabel('days')
         ax2.set_ylabel('latent state')
+        ax2.set_ylim(ymin=0)
+        ax2.set_ylim(ymax=self.k)
 
         plt.tight_layout()
         plt.show()
